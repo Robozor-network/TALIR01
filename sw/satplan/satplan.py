@@ -36,6 +36,9 @@ parser.add_argument('-n', dest='no', default=5, type=int,
 parser.add_argument('--dishp', dest='dishp', default=False, action='store_true',
                     help='export a dishp tracking script for the first upcoming pass, redirect stdout'
                     	 + ' to save to a file')
+parser.add_argument('--mock-start', dest='mock_start', metavar='START_TIME', type=parse_time,
+                    help="when producing a dishp script, take the sky trajectory of the pass but shift"
+                    	 " the time to simulate the pass beginning at the time point given as argument")
 
 
 def pass_search(soi, at, since):
@@ -139,7 +142,11 @@ def main():
 		print("No good azimuth mapping into actuator range", file=sys.stderr)
 		sys.exit(1)
 	print("Mapping azimuth into actuator range %d to %d" % (az_start, az_start+360), file=sys.stderr)
+	if args.mock_start is not None:
+		first = ts_[0]
+		ts_ = [ts.tt_jd(t.tt - first.tt + args.mock_start.tt) for t in ts_]
 	points = zip(ts_, alts, mapped)
+
 
 	print("flush")
 	first = True
