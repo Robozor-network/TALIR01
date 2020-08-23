@@ -42,7 +42,7 @@ parser.add_argument('--mock-start', dest='mock_start', metavar='START_TIME', typ
 
 
 def pass_search(soi, at, since):
-	start = None
+	start = since
 	end = None
 	maxele = 0
 	tarray = ts.tt_jd(since.tt + np.arange(60*24/5)/60/24*3)
