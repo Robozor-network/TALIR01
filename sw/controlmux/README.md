@@ -7,17 +7,17 @@ In TALIR01, `controlmux` encapsulates the dish movement control program `dishp` 
 
 ```
 $ ./controlmux -help
-Usage of ./controlmux:
+Usage: ./controlmux [options] [ENCAPSULATED_PROGRAM PROGRAM_ARGS...]
+
+Options:
   -name string
         (client only) name of the control claimant, to identify in error messages (default "unknown")
   -pri string
         (server only) comma-separated priority levels, from lowest to highest (default "a,b")
-  -program string
-        (server only) name of the program to encapsulate and multiplex control of
   -server
         switch to server process
   -socket string
-        path to socket. in server mode, a dash and a priority level name will be appended to the path and separate socket will posted for each priority level
+        socket path. in server mode, separate socket is posted for each priority level. in that case the full socket path is formed by appending the user-provided path, dash and priority level name
   -timeout int
         (server only) timeout in seconds, the maximum amount of time the encapsulated process can spend unattended, i.e. without a controlling client, before it is caused to exit by closing its standard input (default 5)
 ```

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"io"
 	"log"
 	"net"
@@ -14,13 +13,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 var (
-	programName = flag.String("program", "", "(server only) name of the program to encapsulate and multiplex control of")
-	server      = flag.Bool("server", false, "switch to server process")
-	socketPath  = flag.String("socket", "", "path to socket. in server mode, a dash and a priority level name "+
-		"will be appended to the path and separate socket will posted for each priority level")
+	server     = flag.Bool("server", false, "switch to server process")
+	socketPath = flag.String("socket", "", "socket path. in server mode, separate socket is posted for each priority level."+
+		" in that case the full socket path is formed by appending the user-provided path, dash and a priority level name")
 	priorityLevels = flag.String("pri", "a,b", "(server only) comma-separated priority levels, from lowest to highest")
 	name           = flag.String("name", "unknown", "(client only) name of the control claimant, to identify in error messages")
 	timeout        = flag.Int("timeout", 5, "(server only) timeout in seconds, the maximum amount of time the encapsulated "+
@@ -103,17 +103,18 @@ func startProcess() *process {
 
 func (p *process) run() {
 	var err error
+	programName := flag.Args()[0]
 	defer func() {
 		if err != nil {
-			log.Printf("'%s' exited with error: %s", *programName, err)
+			log.Printf("'%s' exited with error: %s", programName, err)
 			p.exitErr = err
 		} else {
-			log.Printf("'%s' exited gracefully", *programName)
+			log.Printf("'%s' exited gracefully", programName)
 		}
 		close(p.exited)
 	}()
-	log.Printf("running '%s'", *programName)
-	cmd := exec.Command(*programName)
+	log.Printf("running '%s'", programName)
+	cmd := exec.Command(programName, flag.Args()[1:]...)
 	p.pipeIn, err = cmd.StdinPipe()
 	if err != nil {
 		return
@@ -389,16 +390,23 @@ func connect(socketPath string) {
 }
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [ENCAPSULATED_PROGRAM PROGRAM_ARGS...]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if *socketPath == "" {
-		fmt.Fprint(os.Stderr, "No socket path")
+		fmt.Fprint(os.Stderr, "No socket path\n\n")
+		flag.Usage()
 		os.Exit(1)
 	}
 
 	if *server {
-		if *programName == "" {
-			fmt.Fprint(os.Stderr, "No encapsulated program name")
+		if flag.NArg() == 0 {
+			fmt.Fprint(os.Stderr, "No encapsulated program name\n\n")
+			flag.Usage()
 			os.Exit(1)
 		}
 
