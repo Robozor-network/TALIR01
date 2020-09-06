@@ -228,7 +228,7 @@ struct axis
 pos_t user_to_pulses(double user, int axis) {
 	switch (axis) {
 	case 0:
-		return (user*125/90)*12;
+		return user*12;
 	case 1:
 		return user*170/3;
 	default:

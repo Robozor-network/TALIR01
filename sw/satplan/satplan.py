@@ -122,7 +122,7 @@ def main():
 	while tt < end.tt:
 		t = ts.tt_jd(tt)
 		alt, az, _ = relpos.at(t).altaz()
-		if alt.degrees < 0:
+		if alt.degrees < 5:
 			tt += 8 / 60 / 60 / 24
 			continue
 		else:
@@ -152,7 +152,7 @@ def main():
 	first = True
 	for t, alt, az in points:
 		if first:
-			print("move %.2f %.2f" % (alt*100, az*100))
+			print("move %.2f %.2f" % ((alt-5)/85*165*100, az*100))
 			first = False
 		print("point %d %.2f %.2f" % (t.utc_datetime().timestamp()*1e6, alt*100, az*100))
 	print("waitidle")

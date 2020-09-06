@@ -16,7 +16,7 @@
 
  * `waitidle`: Wait and do not process subsequent commands until the dish finishes movements due to earlier commands.
 
-Axis coordinates are in unit of one hundreth of a degree. Times are UTC, in microseconds since the epoch.
+~~Axis coordinates are in unit of one hundreth of a degree~~ (wip). Times are UTC, in microseconds since the epoch.
 
 ## Homing Behaviour
 
