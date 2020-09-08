@@ -18,4 +18,5 @@ in rec {
 		uhd = null;
 		ootBlocks = additional;
 	};
+	python3-with-packages = pkgs.python3.withPackages (pkgs: with pkgs; [ scipy numpy libiio ]);
 }
