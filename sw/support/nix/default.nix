@@ -1,16 +1,30 @@
 let
 	nixpkgs-src = builtins.fetchTarball {
-		url = "https://github.com/NixOS/nixpkgs/archive/51d115ac89d676345b05a0694b23bd2691bf708a.tar.gz";
-		sha256 = "1gfjaa25nq4vprs13h30wasjxh79i67jj28v54lkj4ilqjhgh2rs";
+		url = "https://github.com/NixOS/nixpkgs/archive/0cebf41b6683bb13ce2b77bcb6ab1334477b5b29.tar.gz";
+		sha256 = "0dxrfr0w5ksvpjwz0d2hy7x7dirnc2xk9nw1np3wr6kvdlzhs3ik";
  	};
 in rec {
  	pkgs = import nixpkgs-src {};
+ 	libad9361-iio = pkgs.callPackage other/libad9361-iio.nix {};
+ 	py2-construct = pkgs.callPackage other/construct.nix {
+ 		inherit (pkgs.python2.pkgs) buildPythonPackage six pytest arrow;
+ 	};
  	additional = gnuradio: builtins.attrValues rec {
- 		beesat-sdr = pkgs.callPackage ./gnuradio/beesat-sdr.nix { inherit gnuradio; };
- 		gr-sat = pkgs.callPackage ./gnuradio/gr-satellites.nix {
+ 		beesat-sdr = pkgs.callPackage gnuradio/beesat-sdr.nix { inherit gnuradio; };
+ 		gr-lfast = pkgs.callPackage gnuradio/gr-lfast.nix { inherit gnuradio; };
+ 		gr-mesa = pkgs.callPackage gnuradio/gr-mesa.nix { inherit gnuradio gr-lfast; };
+ 		gr-sat = pkgs.callPackage gnuradio/gr-satellites.nix {
  			inherit gnuradio beesat-sdr;
- 			inherit (pkgs.python2Packages) construct requests urllib3 chardet idna;
+ 			inherit (pkgs.python2Packages) requests urllib3 chardet idna;
+ 			construct = py2-construct;
  		};
+ 		gr-iio = pkgs.callPackage gnuradio/gr-iio.nix {
+ 			inherit gnuradio libad9361-iio;
+ 		};
+ 		gr-fosphor = pkgs.callPackage gnuradio/gr-fosphor.nix {
+ 			inherit gnuradio;
+			inherit (pkgs.python2Packages) python;
+		};
  	};
 	gnuradio = pkgs.callPackage ./gnuradio {
 		inherit (pkgs.python2Packages) numpy scipy matplotlib Mako cheetah pygtk pyqt4 wxPython lxml CoreAudio pyopengl requiredPythonModules;
