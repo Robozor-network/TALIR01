@@ -64,6 +64,7 @@
 , libusb1
 , orc
 , pyopengl
+, xorg
 , buildEnv
 , requiredPythonModules
 , ootBlocks ? (x: [])
@@ -190,13 +191,14 @@ let
     };
   };
   additional = ootBlocks base;
+  additionalList = builtins.attrValues additional;
 in buildEnv rec {
   name = "gnuradio-composite";
   passthru = {
     inherit base;
-  };
-  paths = [ base ] ++ additional ++ requiredPythonModules (base.propagatedBuildInputs ++ base.buildInputs 
-            ++ builtins.concatLists (map (x: x.propagatedBuildInputs) additional));
+  } // additional;
+  paths = [ base xorg.libX11 ] ++ additionalList ++ requiredPythonModules (base.propagatedBuildInputs ++ base.buildInputs 
+            ++ builtins.concatLists (map (x: x.propagatedBuildInputs) additionalList));
   ignoreCollisions = true;
   postBuild = ''
     . "${makeWrapper}/nix-support/setup-hook"
@@ -216,7 +218,8 @@ in buildEnv rec {
               makeWrapper "$path/bin/$prg" "$out/bin/$prg" \
                 --set MATPLOTLIBRC "${base}/share/gnuradio" \
                 --set PYTHONHOME "$out" --set PYTHONNOUSERSITE "true" \
-                --set GRC_BLOCKS_PATH ${stdenv.lib.makeSearchPath "share/gnuradio/grc/blocks" additional}
+                --prefix LD_LIBRARY_PATH : "$out"/lib \
+                --prefix GRC_BLOCKS_PATH : ${stdenv.lib.makeSearchPath "share/gnuradio/grc/blocks" additionalList}
             fi
           fi
         done
