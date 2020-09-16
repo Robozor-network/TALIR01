@@ -9,8 +9,9 @@ in rec {
  	py2-construct = pkgs.callPackage other/construct.nix {
  		inherit (pkgs.python2.pkgs) buildPythonPackage six pytest arrow;
  	};
- 	additional = gnuradio: builtins.attrValues rec {
+ 	additional = gnuradio: rec {
  		beesat-sdr = pkgs.callPackage gnuradio/beesat-sdr.nix { inherit gnuradio; };
+ 		gr-talir = pkgs.callPackage gnuradio/gr-talir.nix { inherit gnuradio; };
  		gr-lfast = pkgs.callPackage gnuradio/gr-lfast.nix { inherit gnuradio; };
  		gr-mesa = pkgs.callPackage gnuradio/gr-mesa.nix { inherit gnuradio gr-lfast; };
  		gr-sat = pkgs.callPackage gnuradio/gr-satellites.nix {
@@ -32,5 +33,5 @@ in rec {
 		uhd = null;
 		ootBlocks = additional;
 	};
-	python3-with-packages = pkgs.python3.withPackages (pkgs: with pkgs; [ scipy numpy libiio ]);
+	python3-with-packages = pkgs.python3.withPackages (pkgs: with pkgs; [ scipy numpy ]); # libiio ]);
 }
