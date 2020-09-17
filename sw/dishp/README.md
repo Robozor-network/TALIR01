@@ -6,15 +6,15 @@
 
 `dishp` reads commands separated by newline on its standard input.
 
- * `move <x> <y>`: Immediately start moving the dish into position `<x> <y>`.
+ * `move <x> <y>`: Start moving the dish into position `<x> <y>`.
 
  * `point <t> <x> <y>`: Append a tracking point at time `<t>` and position `<x> <y>` to the tracking point list.
 
  * `track`: Put the dish into tracking mode. In tracking mode, the dish movement smoothly passes through the points specified by earlier `point` commands.
 
- * `flush`: Clear the list of tracking points and possibly abort tracking, if in progress.
+ * `waitidle`: Wait and do not process subsequent commands until the dish finishes movements due to earlier `move` or `track` commands.
 
- * `waitidle`: Wait and do not process subsequent commands until the dish finishes movements due to earlier commands.
+ * `flush`: Abort tracking or movement, if in progress, and clear the command queue. The command's effect will be immediate even if preceded by unfinished `waitidle` commands. The command also clears the list of tracking points.
 
 ~~Axis coordinates are in unit of one hundreth of a degree~~ (wip). Times are UTC, in microseconds since the epoch.
 

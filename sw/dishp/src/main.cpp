@@ -238,12 +238,12 @@ pos_t user_to_pulses(double user, int axis) {
 
 void loop(regulators *regulators)
 {
-	std::deque<utime_t> track_xs;
-	std::deque<pos_t> track_ys[NO_OF_AXES];
+	deque<utime_t> track_xs;
+	deque<pos_t> track_ys[NO_OF_AXES];
 	int mode = IDLE;
 	bool retained_cmd = false;
 	bool should_exit = false;
-	string cmd = "";
+	deque<string> cmd_qu;
 	utime_t now = 0;
 
 	axis axes[2] = {
@@ -255,9 +255,20 @@ void loop(regulators *regulators)
 		now = utime_now();
 
 	while (true) {
-		while (retained_cmd || try_pick_up_cmd(cmd)) {
+		{
+			string c;
+			while (try_pick_up_cmd(c)) {
+				if (c == "flush")
+					cmd_qu.clear();
+				cmd_qu.push_back(c);
+			}
+		}
+
+		while (!cmd_qu.empty()) {
 			utime_t track_x;
 			double track_y[NO_OF_AXES];
+			bool retained_cmd = false;
+			string cmd = cmd_qu[0];
 
 			if (sscanf(cmd.c_str(), "move %lf %lf",
 					   &track_y[0], &track_y[1]) == 2) {
@@ -291,15 +302,15 @@ void loop(regulators *regulators)
 			} else if (cmd == "exit") {
 				should_exit = true;
 			} else if (cmd == "waitidle") {
-				if (mode == IDLE) {
-					retained_cmd = false;
-				} else {
-					retained_cmd = true;
+				// waitidle will be processed once dish is idle
+				// until then, we keep the command at head of queue
+				if (mode != IDLE)
 					break;
-				}
 			} else {
 				cerr << "Invalid command: " << cmd << endl;
 			}
+
+			cmd_qu.pop_front();
 		}
 
 		if (!regulators->running()) {

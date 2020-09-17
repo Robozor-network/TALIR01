@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <semaphore.h>
+#include <signal.h>
 
 double utime_to_sec(utime_t t) {
 	return ((double) t) / 1e6;
@@ -19,7 +20,7 @@ T clamp(T v, T lo, T hi) {
 }
 
 static string line;
-static sem_t have_cmd, cmd_picked_up;
+static sem_t have_cmd, cmd_picked_up, interrupt;
 void read_commands_thread()
 {
 	while (true) {
@@ -29,14 +30,24 @@ void read_commands_thread()
 		sem_wait(&cmd_picked_up);
 	}
 }
+void sig_int_handler(int no)
+{
+	sem_post(&interrupt);
+}
 void init_cmd_entry()
 {
 	sem_init(&have_cmd, 0, 0);
 	sem_init(&cmd_picked_up, 0, 0);
+	sem_init(&interrupt, 0, 0);
+	signal(SIGINT, sig_int_handler);
 	thread(read_commands_thread).detach();
 }
 bool try_pick_up_cmd(string &target)
 {
+	if (sem_trywait(&interrupt) == 0) {
+		target = "flush";
+		return true;
+	}
 	if (sem_trywait(&have_cmd) < 0)
 		return false;
 	target = line;
