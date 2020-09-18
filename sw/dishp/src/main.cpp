@@ -12,6 +12,7 @@ using namespace std;
 #include "util.h"
 
 bool simulate = false;
+bool nowait = false;
 
 #include <time.h>
 utime_t utime_now() {
@@ -130,6 +131,7 @@ enum {
 struct axis
 {
 	const int id;
+	const string name;
 	const pos_t minPos, maxPos, maxVel, maxAccel;
 
 	axis_interp interp;
@@ -138,8 +140,8 @@ struct axis
 	pos_t currentVel;
 	pos_t target;
 
-	axis(int id, pos_t minPos, pos_t maxPos, pos_t maxVel, pos_t maxAccel)
-		: id(id), minPos(minPos), maxPos(maxPos), maxVel(maxVel), maxAccel(maxAccel),
+	axis(int id, string name, pos_t minPos, pos_t maxPos, pos_t maxVel, pos_t maxAccel)
+		: id(id), name(name), minPos(minPos), maxPos(maxPos), maxVel(maxVel), maxAccel(maxAccel),
 		  current(0), currentSub(0), currentVel(0), target(0) {}
 
 	pos_t step(utime_t now, int mode,
@@ -225,15 +227,108 @@ struct axis
 	}
 };
 
-pos_t user_to_pulses(double user, int axis) {
-	switch (axis) {
-	case 0:
-		return user*12;
-	case 1:
-		return user*170/3;
-	default:
-		return 0;
+struct native_coords : coord_system {
+	string name() {
+		return "native";
 	}
+
+	void to_pulses(pos_t *pulses, double *user) {
+		for (int i = 0; i < NO_OF_AXES; i++)
+			pulses[i] = user[i];
+	}
+
+	void from_pulses(pos_t *pulses, double *user) {
+		for (int i = 0; i < NO_OF_AXES; i++)
+			user[i] = pulses[i];
+	}
+};
+
+struct user_coords : coord_system {
+	string name() {
+		return "user";
+	}
+
+	void to_pulses(pos_t *pulses, double *user) {
+		pulses[0] = user[0]*12+0.5;
+		pulses[1] = (user[1]*170+0.5)/3;
+	}
+
+	void from_pulses(pos_t *pulses, double *user) {
+		user[0] = ((double) pulses[0])/12;
+		user[1] = ((double) pulses[1])*3/170;
+	}
+};
+
+coord_system *coord_systems[] = {
+	new native_coords(),
+	new user_coords(),
+	NULL
+};
+
+coord_system *lookup_coord_system(string name) {
+	coord_system **s;
+	for (s = coord_systems; *s != NULL; s++)
+		if ((*s)->name() == name)
+			break;
+	return *s;
+}
+
+axis axes[NO_OF_AXES] = {
+	axis(0, "alt", 0, 240000, 12000, 12000),
+	axis(1, "az", -1530000, 1530000, 17000, 17000)
+};
+
+struct point {
+	pos_t pulses[NO_OF_AXES];
+	utime_t time;
+	char mode;
+
+	void print() {
+		char b[512];
+		double u[NO_OF_AXES];
+		int n = 0;
+		coord_system **s;
+		bool first = true;
+		for (s = coord_systems; *s != NULL; s++) {
+			string sname = (*s)->name();
+			(*s)->from_pulses(pulses, u);
+			for (int i = 0; i < NO_OF_AXES; i++) {
+				if (n > 0) n += snprintf(b+n, sizeof(b)-n, ",");
+				n += snprintf(b+n, sizeof(b)-n, "\"%s_%s\":%.4lf",
+							  axes[i].name.c_str(), sname.c_str(), u[i]);
+			}
+		}
+		printf("{\"t\":%" PRId64 ",%s,\"mode\":\"%c\"}\n", time, b, (int) mode);
+		fflush(stdout);
+	}
+};
+
+static sem_t new_point, point_printed;
+static point point_to_print;
+void print_points_thread()
+{
+	while (true) {
+		sem_wait(&new_point);
+		point_to_print.print();
+		sem_post(&point_printed);
+	}
+}
+void init_point_printing()
+{
+	sem_init(&new_point, 0, 0);
+	sem_init(&point_printed, 0, 0);
+	sem_post(&point_printed);
+	thread(print_points_thread).detach();
+}
+
+void concurrent_print(point p)
+{
+	// we attempt to print the point in a separate thread
+	// this way stuck write will not block the realtime loop
+	if (sem_trywait(&point_printed) < 0)
+		return; // last point not printed yet, drop the new point
+	point_to_print = p;
+	sem_post(&new_point);
 }
 
 void loop(regulators *regulators)
@@ -245,13 +340,11 @@ void loop(regulators *regulators)
 	bool should_exit = false;
 	deque<string> cmd_qu;
 	utime_t now = 0;
+	coord_system *curr_coords = lookup_coord_system("user");
 
-	axis axes[2] = {
-		axis(0, 0, 240000, 12000, 12000),
-		axis(1, -1530000, 1530000, 17000, 17000)
-	};
+	bool realtime = !(simulate && nowait);
 
-	if (!simulate)
+	if (realtime)
 		now = utime_now();
 
 	while (true) {
@@ -267,6 +360,7 @@ void loop(regulators *regulators)
 		while (!cmd_qu.empty()) {
 			utime_t track_x;
 			double track_y[NO_OF_AXES];
+			pos_t track_y_pulses[NO_OF_AXES];
 			bool retained_cmd = false;
 			string cmd = cmd_qu[0];
 
@@ -275,8 +369,9 @@ void loop(regulators *regulators)
 				if (mode == TRACK) {
 					cerr << "Error: Dish busy with tracking, run 'flush' to abort: " << cmd << endl;
 				} else {
+					curr_coords->to_pulses(track_y_pulses, track_y);
 					for (int i = 0; i < NO_OF_AXES; i++)
-						axes[i].target = user_to_pulses(track_y[i], i);
+						axes[i].target = track_y_pulses[i];
 					mode = MOVE;
 				}
 			} else if (sscanf(cmd.c_str(), "point %" PRId64 " %lf %lf",
@@ -285,8 +380,9 @@ void loop(regulators *regulators)
 					cerr << "Error: Tracking point too early: " << cmd << endl;
 				} else {
 					track_xs.push_back(track_x);
+					curr_coords->to_pulses(track_y_pulses, track_y);
 					for (int i = 0; i < NO_OF_AXES; i++)
-						track_ys[i].push_back(user_to_pulses(track_y[i], i));
+						track_ys[i].push_back(track_y_pulses[i]);
 				}
 			} else if (cmd == "track") {
 				mode = TRACK;
@@ -318,7 +414,7 @@ void loop(regulators *regulators)
 			pos_t empty[NO_OF_AXES];
 			if (regulators->step(should_exit, empty))
 				break;
-			if (!simulate) {
+			if (realtime) {
 				now += period;
 				usleep(std::max(0, (int) (now - utime_now())));
 			}
@@ -366,13 +462,9 @@ void loop(regulators *regulators)
 		if (regulators->step(should_exit, pos))
 			break;
 
-		if (!simulate) {
-			now += period;
-			usleep(std::max(0, (int) (now - utime_now())));
-		} else {
-			std::cout << now << " ";
-			for (int i = 0; i < NO_OF_AXES; i++)
-				std::cout << pos[i] << " ";
+		point p;
+		{
+
 			char mode_c;
 			switch (mode) {
 			case IDLE:
@@ -387,9 +479,20 @@ void loop(regulators *regulators)
 			default:
 				mode_c = '*';
 			}
-			cout << mode_c << endl;
-			now += period;
+			p.time = now;
+			for (int i = 0; i < NO_OF_AXES; i++)
+				p.pulses[i] = axes[i].current;
+			p.mode = mode_c;
 		}
+
+		if (realtime)
+			concurrent_print(p);
+		else
+			p.print();
+
+		now += period;
+		if (realtime)
+			usleep(std::max(0, (int) (now - utime_now())));
 	}
 
 	delete regulators;
@@ -398,21 +501,25 @@ void loop(regulators *regulators)
 int main(int argc, char *argv[])
 {
 	int opt;
-	while ((opt = getopt(argc, argv, "ts")) != -1) {
+	while ((opt = getopt(argc, argv, "tsn")) != -1) {
 		switch (opt) {
 		case 's':
 			simulate = true;
+			break;
+		case 'n':
+			nowait = true;
 			break;
 		case 't':
 			fprintf(stderr, "%" PRId64 "\n", utime_now());
 			return 0;
 		default:
-			cerr << "Usage: " << argv[0] << " -s" << endl;
+			cerr << "Usage: " << argv[0] << " [-s] [-n]" << endl;
 			return 1;
 		}
 	}
 
 	init_cmd_entry();
+	init_point_printing();
 
 	regulators *g;
 	if (simulate)

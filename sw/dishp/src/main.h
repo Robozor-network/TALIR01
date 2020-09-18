@@ -2,6 +2,7 @@
 #define __MAIN_H
 
 #include <stdint.h>
+#include <string>
 
 #define NO_OF_AXES 2
 
@@ -11,6 +12,12 @@ typedef pos_t prec_t;
 const utime_t period = 4000;
 const int period_us = period;
 const int frequency = 250;
+
+struct coord_system {
+	virtual std::string name() = 0;
+	virtual void to_pulses(pos_t *pulses, double *user) = 0;
+	virtual void from_pulses(pos_t *pulses, double *user) = 0;
+};
 
 /* abstract class for regulators */
 class regulators {
