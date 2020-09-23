@@ -36,22 +36,29 @@ parser.add_argument('-n', dest='no', default=5, type=int,
 parser.add_argument('--dishp', dest='dishp', default=False, action='store_true',
                     help='export a dishp tracking script for the first upcoming pass, redirect stdout'
                     	 + ' to save to a file')
+parser.add_argument('--print-start', dest='print_start', default=False, action='store_true',
+                    help='print start time of the first found pass')
+parser.add_argument('--print-duration', dest='print_duration', default=False, action='store_true',
+                    help='print duration, in seconds, of the first found pass')
+parser.add_argument('--ele-threshold', type=float, dest='ele_th', default=5.0,
+                    help='elevation threshold that passes must cross to be considered')
 parser.add_argument('--mock-start', dest='mock_start', metavar='START_TIME', type=parse_time,
                     help="when producing a dishp script, take the sky trajectory of the pass but shift"
                     	 " the time to simulate the pass beginning at the time point given as argument")
 
 
-def pass_search(soi, at, since):
+def pass_search(soi, at, since, ele_th=5.0, search_inc_days=1/24/60, horizon_days=1.0):
 	start = since
 	end = None
 	maxele = 0
-	tarray = ts.tt_jd(since.tt + np.arange(60*24/5)/60/24*3)
+	td = np.arange(int(horizon_days/search_inc_days))*search_inc_days
+	tarray = ts.tt_jd(since.tt + td)
 	alts, azs, _ = (soi - at).at(tarray).altaz()
 	for t, alt, az in zip(tarray, alts.degrees, azs.degrees):
 		if alt > maxele:
 			maxele = alt
 		if alt < 0:
-			if maxele > 0:
+			if maxele > ele_th:
 				end = t
 				return (start, end, maxele)
 			start = t
@@ -66,7 +73,7 @@ def azs_continuous(azs):
 	return np.all(np.max(np.abs(np.diff(azs))) < 180)
 
 
-def print_passes(soi, place, since, count=5):
+def print_passes(soi, place, since, ele_th, count=5):
 	print("Next %d passes of sat '%s':" % (count, soi.name))
 	print("")
 	print("               Start     End        Max Ele  ")
@@ -74,7 +81,18 @@ def print_passes(soi, place, since, count=5):
 
 	prevdate, prevstime, prevetime = "", "", ""
 	for _ in range(count):
-		pass_ = pass_search(soi, place, since)
+		pass_ = pass_search(
+			soi, place, since, ele_th,
+			search_inc_days=1/24/30,
+		)
+		if pass_ is None:
+			break
+		# refine
+		start, end, maxele = pass_
+		pass_ = pass_search(
+			soi, place, start, ele_th,
+			search_inc_days=1/24/60/60, horizon_days=1/24/2,
+		)
 		if pass_ is None:
 			break
 		start, end, maxele = pass_
@@ -100,12 +118,19 @@ def main():
 	_sats_by_name = {sat.name: sat for sat in satellites.values()}
 	soi = _sats_by_name[args.sat]
 
-	if not args.dishp:
-		print_passes(soi, place, args.since, args.no)
+	if not (args.dishp or args.print_start or args.print_duration):
+		print_passes(soi, place, args.since, args.ele_th, args.no)
 		return
 
 	# search for a pass
-	found_pass = pass_search(soi, place, args.since)
+	found_pass = pass_search(soi, place, args.since, args.ele_th)
+	if found_pass is not None:
+		start, end, maxele = found_pass
+		found_pass = pass_search(
+			soi, place, start, args.ele_th,
+			search_inc_days=1/24/60/60, horizon_days=1/24/2,
+		)
+
 	if found_pass is not None:
 		start, end, maxele = found_pass
 		print("Found pass between %s and %s with maximum elevation %.1f"
@@ -114,6 +139,15 @@ def main():
 		print("No pass found", file=sys.stderr)
 		sys.exit(1)
 		return
+
+	if args.print_start:
+		print(start.utc_iso(''))
+		return
+	elif args.print_duration:
+		print("%.1f" % ((end - start)*24*60*60))
+		return
+	else:
+		pass # dishp
 
 	points = []
 	start, end, _ = found_pass
