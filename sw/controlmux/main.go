@@ -23,7 +23,7 @@ var (
 		" in that case the full socket path is formed by appending the user-provided path, dash and a priority level name")
 	priorityLevels = flag.String("pri", "a,b", "(server only) comma-separated priority levels, from lowest to highest")
 	name           = flag.String("name", "unknown", "(client only) name of the control claimant, to identify in error messages")
-	timeout        = flag.Int("timeout", 5, "(server only) timeout in seconds, the maximum amount of time the encapsulated "+
+	timeoutSecs    = flag.Int("timeout", 5, "(server only) timeout in seconds, the maximum amount of time the encapsulated "+
 		"process can spend unattended, i.e. without a controlling client, before it is caused to exit by closing its standard input")
 )
 
@@ -83,8 +83,8 @@ type process struct {
 	pipesReady   chan struct{}
 	closed       chan struct{}
 	exited       chan struct{}
-
-	timeout *time.Timer
+	stopTimer    chan struct{}
+	resetTimer   chan struct{}
 
 	*KingOfTheHill
 }
@@ -94,8 +94,9 @@ func startProcess() *process {
 	p.exited = make(chan struct{})
 	p.closed = make(chan struct{})
 	p.pipesReady = make(chan struct{})
-	p.pipeOutBuffs = make(chan []byte)
-	p.timeout = time.NewTimer(2 * time.Second)
+	p.pipeOutBuffs = make(chan []byte, 4)
+	p.stopTimer = make(chan struct{})
+	p.resetTimer = make(chan struct{})
 	p.KingOfTheHill = NewKOTH()
 	go p.run()
 	return p
@@ -150,12 +151,32 @@ func (p *process) run() {
 	}
 	go func() {
 		defer close(p.closed)
-		select {
-		case <-p.exited:
-			return
-		case <-p.timeout.C:
+
+		timeout := time.NewTimer(time.Duration(*timeoutSecs) * time.Second)
+		var drain chan []byte
+		drain = p.pipeOutBuffs
+		for {
+			select {
+			case <-drain:
+			case <-p.exited:
+				return
+			case <-p.stopTimer:
+				if !timeout.Stop() {
+					<-timeout.C
+				}
+				drain = nil
+			case <-p.resetTimer:
+				timeout.Reset(time.Duration(*timeoutSecs) * time.Second)
+				drain = p.pipeOutBuffs
+			case <-timeout.C:
+				p.pipeIn.Close()
+				go func() {
+					for _ = range p.pipeOutBuffs {
+					}
+				}()
+				return
+			}
 		}
-		p.pipeIn.Close()
 	}()
 	err = <-outCopyErrch
 	if err != nil {
@@ -163,6 +184,22 @@ func (p *process) run() {
 		return
 	}
 	err = cmd.Wait()
+}
+
+func (p *process) stopTimeout() bool {
+	select {
+	case p.stopTimer <- struct{}{}:
+		return true
+	case <-p.closed:
+		return false
+	}
+}
+
+func (p *process) resetTimeout() {
+	select {
+	case p.resetTimer <- struct{}{}:
+	case <-p.closed:
+	}
 }
 
 type AttachReader interface {
@@ -188,10 +225,10 @@ func (p *process) attach(owner Owner, in AttachReader, out AttachWriter) error {
 	}
 	defer close(freech)
 
-	if !p.timeout.Stop() {
+	if !p.stopTimeout() {
 		return errors.New("closed")
 	}
-	defer p.timeout.Reset(2 * time.Second)
+	defer p.resetTimeout()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
