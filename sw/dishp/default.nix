@@ -21,6 +21,6 @@ stdenv.mkDerivation {
     '';
     */
     installPhase = ''
-    	touch $out
+        install -m 555 bin/dishp -Dt $out/bin/
     '';
 }
