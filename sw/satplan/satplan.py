@@ -5,6 +5,7 @@ import time
 import sys
 import argparse
 import numpy as np
+import pytz
 from dateutil import parser as dateparser
 from skyfield.api import load, Topos, EarthSatellite, utc
 
@@ -38,6 +39,8 @@ parser.add_argument('--dishp', dest='dishp', default=False, action='store_true',
                     	 + ' to save to a file')
 parser.add_argument('--print-start', dest='print_start', default=False, action='store_true',
                     help='print start time of the first found pass')
+parser.add_argument('--print-end', dest='print_end', default=False, action='store_true',
+                    help='print end time of the first found pass')
 parser.add_argument('--print-duration', dest='print_duration', default=False, action='store_true',
                     help='print duration, in seconds, of the first found pass')
 parser.add_argument('--ele-threshold', type=float, dest='ele_th', default=5.0,
@@ -118,7 +121,7 @@ def main():
 	_sats_by_name = {sat.name: sat for sat in satellites.values()}
 	soi = _sats_by_name[args.sat]
 
-	if not (args.dishp or args.print_start or args.print_duration):
+	if not (args.dishp or args.print_start or args.print_duration or args.print_end):
 		print_passes(soi, place, args.since, args.ele_th, args.no)
 		return
 
@@ -141,7 +144,10 @@ def main():
 		return
 
 	if args.print_start:
-		print(start.utc_iso(''))
+		print(start.astimezone(pytz.utc).isoformat())
+		return
+	elif args.print_end:
+		print(end.astimezone(pytz.utc).isoformat())
 		return
 	elif args.print_duration:
 		print("%.1f" % ((end - start)*24*60*60))
