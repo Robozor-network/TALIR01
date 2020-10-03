@@ -1,0 +1,195 @@
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>TALIR Command Desk</title>
+  <link rel="stylesheet" href="/bootstrap.min.css">
+
+  <style>
+    .arrows-axis {
+      text-align: center;
+      font-size: 30px
+    }
+    .grayed-out {
+      opacity: 0.4;
+    }
+
+    #log-outer {
+      width: 100%;
+      overflow: scroll;
+    }
+
+    #log {
+      white-space: pre-wrap;
+    }
+  </style>
+  <script type="text/javascript">
+    const socket = new WebSocket('ws://' + location.host + '/log');
+    socket.addEventListener('message', function (event) {
+      document.getElementById("log").appendChild(document.createTextNode(event.data + "\n"));
+    });
+
+    var dx = 0;
+    var dy = 0;
+    var x = 0;
+    var y = 0;
+    var tim = 0;
+    
+    function mpMove() {
+      command("move " + x*100 + " " + y*100);
+    }
+    
+    function onStartFastUpdate() {
+      clearInterval(tim);
+      tim = setInterval(onUpdate, 50);
+    }
+    
+    function onUpdate() {
+      x = x + dx;
+      y = y + dy;
+      
+      if (x>270) x=270; else if (x<-270) x=-270;
+      if (y>200) y=200; else if (y<0) y=0;
+      
+      document.getElementById("heave").innerHTML = y;
+      document.getElementById("rotation").innerHTML = x;
+    }
+    
+    function onTouch(id) {
+      document.getElementById(id).setAttributeNS(null, "fill", "green");
+      
+      onUpdate();
+      
+      tim = setInterval(onStartFastUpdate, 500);
+    }
+    
+    function onUntouch(id) {
+      document.getElementById(id).setAttributeNS(null, "fill", "black");
+      clearInterval(tim);
+    }
+    
+    function onMoveTouch() {
+      document.getElementById("MOVE").setAttributeNS(null, "fill", "lime");
+      mpMove();
+    }
+    
+    function onMoveUntouch() {
+      document.getElementById("MOVE").setAttributeNS(null, "fill", "green");
+    }
+
+    function command(cmd) {
+      var xmlHttp = new XMLHttpRequest();
+      xmlHttp.open("POST", "/session/cmd");
+      xmlHttp.send(new Blob([cmd, "\n"]));
+    }
+
+    function ping() {
+      var xmlHttp = new XMLHttpRequest();
+      xmlHttp.onload = function(evt) {
+        if (xmlHttp.status == 200) {
+          ping();
+        } else {
+          var msg = "Session ended";
+          if (xmlHttp.responseText.trim() != "") {
+            msg += " (" + xmlHttp.responseText.trim() + ")";
+          }
+          document.getElementById("session-error").innerText = msg;
+          document.getElementById("session-msg").innerText = "";
+          document.getElementById("command-area").classList.add("grayed-out");
+        }
+      }
+      xmlHttp.open("GET", "/session/up");
+      xmlHttp.send();
+    }
+
+    function acquire() {
+      var xmlHttp = new XMLHttpRequest();
+      xmlHttp.onload = function(evt) {
+        document.getElementById("session-error").innerText = "";
+        document.getElementById("session-msg").innerText = "Control acquired";
+        document.getElementById("command-area").classList.remove("grayed-out");
+        ping();
+      }
+      xmlHttp.onfailed = function(evt) {
+        console.log(evt);
+      }
+      xmlHttp.open("GET", "/session/start");
+      xmlHttp.send();
+    }
+
+    function release() {
+      var xmlHttp = new XMLHttpRequest();
+      xmlHttp.open("GET", "/session/shut-down");
+      xmlHttp.send();
+    }
+  </script>
+</head>
+
+<body>
+  <div class="container" style="height: 100%">
+    <div class="row" style="height: 100%">
+      <div class="col m-2">
+        <div id="session-control" style="padding-bottom: 0.5em; border-bottom: 1px solid gray"
+        class="d-flex align-items-center flex-sm-nowrap flex-wrap">
+          <span class="m-2" style="font-weight: bold;">Control:</span>
+          <button type="button" class="btn btn-warning" onclick="acquire();">Acquire</button>
+          <button type="button" class="btn btn-dark" onclick="release();">Release</button>
+          <span class="m-2">
+            <span id="session-error" style="color: #d00"></span>
+            <span id="session-msg" style=""></span>
+          </span>
+        </div>
+        <div id="command-area" class="grayed-out m-2">
+        <div class="row">
+
+<table style="width: 300px; margin: 0 auto">
+  <tr>
+    <td class="arrows-axis">Zdvih [mm]</td>
+    <td></td>
+    <td class="arrows-axis">Rotace [deg]</td>
+  </tr>
+  
+  <tr>
+    <td class="arrows-axis"><span id="heave">0</span></td>
+    <td><svg id="UP" onmousedown="dy=5; onTouch('UP')" onmouseup="dy=0; onUntouch('UP')" width="100" height="100"><polygon points="0,100, 50,0, 100,100" /></svg></td>
+    <td class="arrows-axis"><span id="rotation">0</span></td>
+  </tr>
+  
+  <tr>
+    <td><svg id="LEFT" onmousedown="dx=-5; onTouch('LEFT')" onmouseup="dx=0; onUntouch('LEFT')" width="100" height="100"><polygon points="0,50, 100,0, 100,100" /></svg></td>
+    <td>
+      <svg onmousedown="onMoveTouch()" onmouseup="onMoveUntouch()" width="100" height="100"><circle id="MOVE" cx="50" cy="50" r="50" fill="green"/></svg>
+    </td>
+    <td><svg id="RIGHT" onmousedown="dx=5; onTouch('RIGHT')" onmouseup="dx=0; onUntouch('RIGHT')" width="100" height="100"><polygon points="0,0, 100,50, 0,100" /></svg></td>
+  </tr>
+  
+  <tr>
+    <td></td>
+    <td><svg id="DOWN" onmousedown="dy=-5; onTouch('DOWN')" onmouseup="dy=0; onUntouch('DOWN')" width="100" height="100"><polygon points="0,0, 100,0, 50,100" /></svg></td>
+    <td></td>
+  </tr>
+</table>
+            <div class="col-3-xs">
+              <button type="button" class="m-1 btn btn-danger" onclick="command('exit');">Shut Down Drives</button><br/>
+              <button type="button" class="m-1 btn btn-secondary" onclick="command('flush');">Flush Cmd Queue</button>
+            </div>
+          </div>
+          <form class="mt-4" onsubmit="command(document.getElementById('custom-cmd').value); return false;">
+            <textarea rows="5" id="custom-cmd" style="width: 100%"></textarea>
+            <input type="submit">
+          </form>
+        </div>
+      </div>
+      <div class="col-lg" style="display: flex; flex-flow: column; height: 100%">
+        <h1 style="flex: 0 1 auto;">Log</h1>
+        <div id="log-outer" style="flex: 1 1 auto;">
+        <pre id="log"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
