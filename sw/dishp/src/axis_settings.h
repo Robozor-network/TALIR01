@@ -20,7 +20,7 @@ const prec_t DEFAULT_AXIS_MAXIMUM_POSITION[] = {240000, 1530000};		// 1200 x 200
 const prec_t DEFAULT_AXIS_MINIMUM_POSITION[] = {0, -1530000}; 			// 1200 x 0 = 0 mm, -180 deg
 
 // Default axis homing velocity [pulses/s]
-const prec_t DEFAULT_AXIS_HOME_VELOCITY[] = {12000, 17000};			// 1200 x 10 = 10 mm/s, 17000 x 1 = 3 deg/s
+const prec_t DEFAULT_AXIS_HOME_VELOCITY[] = {4000, 2833}; // {12000, 17000}; // 1200 x 10 = 10 mm/s, 17000 x 1 = 3 deg/s
 
 // [out] GPIOs for step signal
 const int STEP[] = {5, 4};
