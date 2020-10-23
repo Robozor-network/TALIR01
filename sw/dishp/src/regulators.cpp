@@ -393,7 +393,7 @@ private:
 		case 20:		// Homing
 			debug("AxisControl: Homing");
 
-			state = 21; // 23
+			state = skiphoming ? 23 : 21;
 			break;
 
 		case 21:	// Going down and searching for home switch

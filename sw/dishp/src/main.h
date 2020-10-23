@@ -29,4 +29,6 @@ public:
 regulators *new_mock_regulators();
 regulators *new_true_regulators();
 
+extern bool skiphoming;
+
 #endif /* __MAIN_H */

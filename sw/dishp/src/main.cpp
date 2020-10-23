@@ -13,6 +13,7 @@ using namespace std;
 
 bool simulate = false;
 bool nowait = false;
+bool skiphoming = false;
 
 #include <time.h>
 utime_t utime_now() {
@@ -565,7 +566,7 @@ int main(int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "tsn")) != -1) {
+	while ((opt = getopt(argc, argv, "tsnh")) != -1) {
 		switch (opt) {
 		case 's':
 			simulate = true;
@@ -576,8 +577,11 @@ int main(int argc, char *argv[])
 		case 't':
 			fprintf(stderr, "%" PRId64 "\n", utime_now());
 			return 0;
+		case 'h':
+			skiphoming = true;
+			break;
 		default:
-			cerr << "Usage: " << argv[0] << " [-s] [-n]" << endl;
+			cerr << "Usage: " << argv[0] << " [-s] [-n] [-h]" << endl;
 			return 1;
 		}
 	}
