@@ -10,17 +10,42 @@ in
 stdenv.mkDerivation {
     name = "dishp-test";
     src = [ ./. ];
-    buildInputs = [ ];
+    buildInputs = [ pkgs.gnuplot pkgs.jq ];
     buildPhase = ''
-    	make test
+        make test
     '';
-    /*
     doCheck = true;
+    outputs = ["out" "test"];
     checkPhase = ''
-    	${./aux/test.sh}
+        mkdir -p $test/logs
+        function parse() {
+            jq --raw-output '[.t,.alt_user,.az_user] | join(" ")'  
+        }
+        { bin/dishp -sn | parse; } > $test/logs/slow << EOF
+        set azspeed 8500
+        set altspeed 6000
+        move 10000 2000
+        waitidle
+        move 0 0
+        waitidle
+        EOF
+        { bin/dishp -sn | parse; } > $test/logs/fast << EOF
+        set azspeed 17000
+        set altspeed 12000
+        move 10000 2000
+        waitidle
+        move 0 0
+        waitidle
+        EOF
+        gnuplot <<- EOF
+        set term png
+        set output "$test/plot-alt.png"
+        plot "$test/logs/slow" using 1:2 title "slow", "$test/logs/fast" using 1:2 title "fast"
+        set output "$test/plot-az.png"
+        plot "$test/logs/slow" using 1:3 title "slow", "$test/logs/fast" using 1:3 title "fast"
+        EOF
     '';
-    */
     installPhase = ''
-    	touch $out
+        install -m 555 bin/dishp -Dt $out/bin/
     '';
 }
