@@ -276,8 +276,8 @@ coord_system *lookup_coord_system(string name) {
 }
 
 axis axes[NO_OF_AXES] = {
-	axis(0, "alt", 0, 240000, 12000, 12000, 12000),
-	axis(1, "az", -1530000, 1530000, 17000, 17000, 17000)
+	axis(0, "alt", 0, 240000, 2*12000, 12000, 12000),
+	axis(1, "az", -1530000, 1530000, 2*17000, 17000, 17000)
 };
 
 struct point {
