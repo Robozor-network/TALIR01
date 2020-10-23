@@ -16,6 +16,12 @@
 
  * `flush`: Abort tracking or movement, if in progress, and clear the command queue. The command's effect will be immediate even if preceded by unfinished `waitidle` commands. The command also clears the list of tracking points.
 
+ * `set <param> <value>`: Set parameter `<param>` to value `<value>`. The following parameters may be set through this command:
+
+    * `errexit`: Influences `dishp` behaviour when regulators are in an error state. Value may be `1`, in which case the program will exit with non-zero exit code, or `0`, in which case the program will keep running. In both cases an error message will be printed to stderr.
+
+    * `azspeed` and `altspeed`: Maximal speed for movement in x and y axis. Hard limits in source code prevent maximal speed to be set too high.
+
 ~~Axis coordinates are in unit of one hundreth of a degree~~ (wip). Times are UTC, in microseconds since the epoch.
 
 ## Homing Behaviour

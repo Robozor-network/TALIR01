@@ -132,7 +132,8 @@ struct axis
 {
 	const int id;
 	const string name;
-	const pos_t minPos, maxPos, maxVel, maxAccel;
+	const pos_t minPos, maxPos, maxVelHard, maxAccel;
+	double maxVelSoft; // maximum velocity set by user
 
 	axis_interp interp;
 	pos_t current;
@@ -140,9 +141,9 @@ struct axis
 	pos_t currentVel;
 	pos_t target;
 
-	axis(int id, string name, pos_t minPos, pos_t maxPos, pos_t maxVel, pos_t maxAccel)
-		: id(id), name(name), minPos(minPos), maxPos(maxPos), maxVel(maxVel), maxAccel(maxAccel),
-		  current(0), currentSub(0), currentVel(0), target(0) {}
+	axis(int id, string name, pos_t minPos, pos_t maxPos, pos_t maxVel, pos_t maxAccel, double maxVelSoft)
+		: id(id), name(name), minPos(minPos), maxPos(maxPos), maxVelHard(maxVel), maxAccel(maxAccel),
+		  maxVelSoft(maxVelSoft), current(0), currentSub(0), currentVel(0), target(0) {}
 
 	pos_t step(utime_t now, int mode,
 			   std::deque<utime_t> track_xs,
@@ -188,6 +189,7 @@ struct axis
 		// 		 of continuous deceleration
 		pos_t maxAccelReduced = maxAccel - maxAccel/12;
 
+		pos_t maxVel = min(maxVelHard, (pos_t) maxVelSoft);
 		newVel = min(
 			maxVel,
 			(pos_t) (sqrt(2*dx*maxAccelReduced + targetVel*targetVel))
@@ -274,8 +276,8 @@ coord_system *lookup_coord_system(string name) {
 }
 
 axis axes[NO_OF_AXES] = {
-	axis(0, "alt", 0, 240000, 12000, 12000),
-	axis(1, "az", -1530000, 1530000, 17000, 17000)
+	axis(0, "alt", 0, 240000, 12000, 12000, 12000),
+	axis(1, "az", -1530000, 1530000, 17000, 17000, 17000)
 };
 
 struct point {
@@ -324,15 +326,49 @@ void init_point_printing()
 void concurrent_print(point p)
 {
 	// we attempt to print the point in a separate thread
-	// this way stuck write will not block the realtime loop
+	// this way a stuck write will not block the realtime loop
 	if (sem_trywait(&point_printed) < 0)
 		return; // last point not printed yet, drop the new point
 	point_to_print = p;
 	sem_post(&new_point);
 }
 
-void loop(regulators *regulators)
+// a parameter whose value can be modified from the textual command input
+struct param {
+	const char *cname; // parameter name
+	double *tdouble; // pointer to parameter double value, if applicable
+	bool *tbool; // ditto bool value, if applicable
+
+	param(const char *cname, double *tdouble, bool *tbool)
+		: cname(cname), tdouble(tdouble), tbool(tbool)
+	{
+	}
+
+	void set(string s)
+	{
+		if (tbool != NULL) {
+			if (s == "") {
+				*tbool = true;
+			} else {
+				*tbool = atoi(s.c_str()) != 0;
+			}
+		} else if (tdouble != NULL) {
+			*tdouble = atof(s.c_str());
+		}
+	}
+};
+
+bool exit_on_error = false;
+
+param params[] = {
+	param("errexit", NULL, &exit_on_error),
+	param("altspeed", &(axes[0].maxVelSoft), NULL),
+	param("azspeed", &(axes[1].maxVelSoft), NULL)
+};
+
+int loop(regulators *regulators)
 {
+	int exit_code = 0;
 	deque<utime_t> track_xs;
 	deque<pos_t> track_ys[NO_OF_AXES];
 	int mode = IDLE;
@@ -402,11 +438,37 @@ void loop(regulators *regulators)
 				// until then, we keep the command at head of queue
 				if (mode != IDLE)
 					break;
+			} else if (strncmp(cmd.c_str(), "set ", 4) == 0) {
+				// locate name in string
+				const char *nameb = cmd.c_str() + 4;
+				while (*nameb == ' ') nameb++;
+				const char *namee = strchr(nameb, ' ');
+				if (namee == NULL) namee = nameb+strlen(nameb);
+				// locate value in string
+				const char *valb = namee;
+				while (*valb == ' ') valb++;
+				// set parameter
+				const int nparams = sizeof(params)/sizeof(param);
+				int i;
+				for (i = 0; i < nparams; i++)
+					if (strlen(params[i].cname) == (namee-nameb)
+						&& strncmp(nameb, params[i].cname, namee-nameb) == 0)
+						break;
+				if (i != nparams) {
+					params[i].set(string(valb));
+				} else {
+					cerr << "No such parameter: " << string(nameb, namee-nameb) << endl;
+				}
 			} else {
 				cerr << "Invalid command: " << cmd << endl;
 			}
 
 			cmd_qu.pop_front();
+		}
+
+		if (regulators->error() && exit_on_error) {
+			exit_code = 1;
+			should_exit = true;
 		}
 
 		if (!regulators->running()) {
@@ -496,11 +558,13 @@ void loop(regulators *regulators)
 	}
 
 	delete regulators;
+	return exit_code;
 }
 
 int main(int argc, char *argv[])
 {
 	int opt;
+
 	while ((opt = getopt(argc, argv, "tsn")) != -1) {
 		switch (opt) {
 		case 's':
@@ -526,7 +590,6 @@ int main(int argc, char *argv[])
 		g = new_mock_regulators();
 	else
 		g = new_true_regulators();
-	loop(g);
 
-	return 0;
+	return loop(g);
 }
