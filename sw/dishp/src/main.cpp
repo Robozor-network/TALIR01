@@ -595,5 +595,8 @@ int main(int argc, char *argv[])
 	else
 		g = new_true_regulators();
 
+	if (!g)
+		return 1;
+
 	return loop(g);
 }

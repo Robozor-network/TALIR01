@@ -546,8 +546,18 @@ void done_pi()
 	digitalWrite(POWER, LOW);
 }
 
+
+#include <fcntl.h>
+#include <sys/file.h>
+
 regulators *new_true_regulators()
 {
+	int fd = open("/run/talir01_regulators.lock", O_CREAT|O_WRONLY, 0700);
+	if ((fd < 0) || (flock(fd, LOCK_EX | LOCK_NB) < 0)) {
+		cerr << "Failed to obtain exclusive lock" << endl;
+		return NULL;
+	}
+
 	init_pi();
 
 	return new AxisControl();
