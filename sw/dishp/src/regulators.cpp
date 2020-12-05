@@ -16,6 +16,7 @@ class mock_regulators: public regulators {
 public:
 	bool running() { return true; }
 	bool error() { return false; }
+	void flush() { fprintf(stderr, "mock regulators: flush\n"); }
 	bool step(bool should_exit, pos_t pos[NO_OF_AXES])
 	{
 		for (int i = 0; i < NO_OF_AXES; i++) {
@@ -476,6 +477,20 @@ private:
 		}
 
 		return result;
+	}
+
+	virtual void flush() {
+		switch (state) {
+		case 20:	// Homing
+		case 21:	// Going down and searching for home switch
+		case 22:	// Going up
+			debug("AxisControl: Skipping homing (flush)");
+			state = 23; // homing done
+			break;
+		default:
+			/* do nothing */
+			break;
+		}
 	}
 
 	virtual void done() {

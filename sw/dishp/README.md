@@ -14,7 +14,7 @@
 
  * `waitidle`: Wait and do not process subsequent commands until the dish finishes movements due to earlier `move` or `track` commands.
 
- * `flush`: Abort tracking or movement, if in progress, and clear the command queue. The command's effect will be immediate even if preceded by unfinished `waitidle` commands. The command also clears the list of tracking points.
+ * `flush`: Abort tracking or movement, if in progress, and clear the command queue. The command's effect will be immediate even if preceded by unfinished `waitidle` commands. The command also clears the list of tracking points, and skips over homing if in progress.
 
  * `set <param> <value>`: Set parameter `<param>` to value `<value>`. The following parameters may be set through this command:
 

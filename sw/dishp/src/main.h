@@ -25,6 +25,7 @@ public:
 	virtual bool running() = 0;
 	virtual bool error() = 0;
 	virtual bool step(bool should_exit, pos_t pos[NO_OF_AXES]) = 0;
+	virtual void flush() = 0;
 };
 regulators *new_mock_regulators();
 regulators *new_true_regulators();

@@ -432,6 +432,7 @@ int loop(regulators *regulators)
 					axes[i].interp.flush();
 				}
 				mode = IDLE;
+				regulators->flush();
 			} else if (cmd == "exit") {
 				should_exit = true;
 			} else if (cmd == "waitidle") {
