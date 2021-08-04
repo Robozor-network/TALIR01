@@ -1,0 +1,38 @@
+diff -Nru -- source/plotview.cpp source.new/plotview.cpp
+--- source/plotview.cpp	1970-01-01 01:00:01.000000000 +0100
++++ source.new/plotview.cpp	2021-08-03 21:09:15.051830371 +0200
+@@ -166,6 +166,23 @@
+     viewport()->update();
+ }
+ 
++void PlotView::keyPressEvent(QKeyEvent *keyEvent) {
++    int key = keyEvent->key();
++    if (key == Qt::Key_PageDown ||
++        key == Qt::Key_PageUp) {
++
++        int stride = width() - verticalScrollBar()->width();
++
++        horizontalScrollBar()->setValue(
++            horizontalScrollBar()->value() + stride * (key == Qt::Key_PageDown ? 1 : -1)
++        );
++        updateView(false);
++        return;
++    }
++
++    QGraphicsView::keyPressEvent(keyEvent);
++}
++
+ bool PlotView::viewportEvent(QEvent *event) {
+     // Handle wheel events for zooming (before the parent's handler to stop normal scrolling)
+     if (event->type() == QEvent::Wheel) {
+diff -Nru -- source/plotview.h source.new/plotview.h
+--- source/plotview.h	1970-01-01 01:00:01.000000000 +0100
++++ source.new/plotview.h	2021-08-03 20:56:18.817927763 +0200
+@@ -59,6 +59,7 @@
+     void resizeEvent(QResizeEvent * event);
+     void scrollContentsBy(int dx, int dy);
+     bool viewportEvent(QEvent *event) override;
++    void keyPressEvent(QKeyEvent *event) override;
+ 
+ private:
+     Cursors cursors;
