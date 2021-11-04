@@ -16,3 +16,6 @@ This repository holds documentation and software related to the construction.
 | Slew rate | 20°/s |  |
 | Operating frequency range | 325 MHz to 3.8 GHz |  Limited by antenna radiator |
 
+## References
+
+  * [The new radio telescope TALIR 01 will receive signals also from the SPACEDOS dosimeter](http://www.ujf.cas.cz/en/news/The-new-radio-telescope-Talir-01-will-receive-signals-also-from-the-SPACEDOS-dosimeter/)
